@@ -1,0 +1,20 @@
+  {
+    "name": "tasks",
+    "transport": "stdio",
+    "description": "https://github.com/flesler/mcp-tasks",
+    "command":"npx",
+    "args":["-y","mcp-tasks"],
+    "env": {
+      "TRANSPORT":"stdio","PORT":"4680",
+      "STATUS_WIP": "WIP",
+      "STATUS_TODO": "todo",
+      "STATUS_DONE": "done",
+      "STATUS_REMINDERS": "reminders",
+      "STATUS_NOTES": "notes",
+      "STATUSES": "wip,todo,done,black,reminders,notes",
+      "AUTO_WIP": "true",
+      "PREFIX_TOOLS": "true",
+      "KEEP_DELETED": "true",
+      "INSTRUCTIONS": "Use mcp-tasks tools when the user mentions new or updated tasks"
+    }
+  }

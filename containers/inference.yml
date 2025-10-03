@@ -1,0 +1,145 @@
+# OLLAMA_DEBUG               Show additional debug information (e.g. OLLAMA_DEBUG=1)
+# OLLAMA_HOST                IP Address for the ollama server (default 127.0.0.1:11434)
+# OLLAMA_KEEP_ALIVE          The duration that models stay loaded in memory (default "5m")
+# OLLAMA_MAX_LOADED_MODELS   Maximum number of loaded models per GPU
+# OLLAMA_MAX_QUEUE           Maximum number of queued requests
+# OLLAMA_MODELS              The path to the models directory
+# OLLAMA_NUM_PARALLEL        Maximum number of parallel requests
+# OLLAMA_NOPRUNE             Do not prune model blobs on startup
+# OLLAMA_ORIGINS             A comma separated list of allowed origins
+# OLLAMA_SCHED_SPREAD        Always schedule model across all GPUs
+# OLLAMA_FLASH_ATTENTION     Enabled flash attention
+# OLLAMA_KV_CACHE_TYPE       Quantization type for the K/V cache (default: f16)
+# OLLAMA_LLM_LIBRARY         Set LLM library to bypass autodetection
+# OLLAMA_GPU_OVERHEAD        Reserve a portion of VRAM per GPU (bytes)
+# OLLAMA_LOAD_TIMEOUT        How long to allow model loads to stall before giving up (default "5m")
+
+services:
+  ollama: &ollama_base
+    hostname: ollama
+    build:
+      context: ..
+      dockerfile_inline: |
+        FROM ollama/ollama:0.12.5
+        RUN apt-get update -qq -y && apt-get install -y -qq iputils-ping make curl procps wget tree 
+        RUN mkdir -p /opt/ollama
+        WORKDIR /opt/ollama
+        COPY .cmk/compose.mk .
+        COPY containers/__main__.mk Makefile
+        COPY mcp/automation.mk .
+      tags: ['ollama.local:base']
+    environment:
+      OLLAMA_HOST: ollama:11434
+      OLLAMA_MODELS: /root/.ollama
+    volumes:
+      # Share the src root
+      - ..:/workspace
+      # NB: this allows model-sharing for any host-installation of ollama if 
+      # it's available. Probably wrong for non-Linux and also maybe wrong for 
+      # some ollama versions?
+      - /usr/share/ollama/.ollama:/root/.ollama
+    profiles: ['ollama','server','all']
+    entrypoint: make engine.ollama
+      
+  lmstudio: &lmstudio
+    hostname: lmstudio
+    profiles: ['lmstudio', 'server', 'all']
+    build:
+      context: ..
+      dockerfile_inline: |
+        # Use an Ubuntu base (or another Linux that supports FUSE, GUI libs, etc.)
+        FROM ubuntu:24.04
+        ENV DISPLAY=:99
+        RUN apt-get update && apt-get install -y \
+              wget fuse libfuse2 libnss3 \
+              libatk1.0-0 libatk-bridge2.0-0 \
+              libcups2 libgtk-3-0 libgbm1 \
+              libclblast1 libgl1 ca-certificates \
+              libasound2-dev make procps xserver-xorg xvfb \
+              libfuse2 kmod fuse libglib2.0-0 libnss3 libatk1.0-0 \
+              libatk-bridge2.0-0 libcups2 libdrm2 libgtk-3-0 libgbm1 xserver-xorg xvfb libgomp1
+        
+        # Download LM Studio AppImage (or other Linux build)
+        RUN wget https://installers.lmstudio.ai/linux/x64/0.3.30-1/LM-Studio-0.3.30-1-x64.AppImage -O /opt/LMStudio.AppImage 
+        RUN chmod +x /opt/LMStudio.AppImage \
+            # optionally “extract” the AppImage to avoid launching in GUI mode
+            && /opt/LMStudio.AppImage --appimage-extract \
+            && mv squashfs-root /opt/lmstudio
+        # Set working directory
+        WORKDIR /opt/lmstudio
+        RUN DEBIAN_FRONTEND=noninteractive apt-get install -y keyboard-configuration console-setup tzdata dbus x11-utils x11-xserver-utils 
+        RUN dpkg-reconfigure -f noninteractive keyboard-configuration
+        RUN chown root:root chrome-sandbox
+        RUN chmod 4755 chrome-sandbox
+        # COPY start_services.sh /opt/lmstudio/start_services.sh
+        # RUN chmod +x /opt/lmstudio/start_services.sh
+        RUN ln -s /opt/lmstudio/resources/app/.webpack/lms /usr/bin/lms
+        RUN apt-get install -y -qq make procps curl iputils-ping tree 
+        COPY .cmk/compose.mk .
+        COPY containers/__main__.mk Makefile
+        COPY mcp/automation.mk .
+    ports: ["1234:1234"]
+      # - 41343:41343
+    entrypoint: make engine.lmstudio
+    volumes:
+      - ../models/lmstudio:/root/.cache/lm-studio/models
+      - ..:/workspace
+    environment:
+      - DISPLAY=:99
+      - CONTEXT_LENGTH=32768
+      # - MODEL_PATH=nomic-embed-text-v1.5.Q4_K_M.gguf
+    configs:
+      - source: mcp.json
+        target: /root/.cache/lm-studio/mcp.json
+        
+    # lmstudio-1  | [CachedFileDataProvider] Watching file at /root/.config/LM Studio/settings.json
+  # lmstudio2: 
+  #   <<: *lmstudio
+  #   entrypoint: >-
+  #     ~/.cache/lm-studio/bin/lms server status --json --quiet
+    # sh -x -c "./resources/app/.webpack/lms server start --cors --port 5900 --log-level debug"
+
+  local_ai:
+    hostname: local_ai
+    profiles: ['server','all']
+    build:
+      context: ..
+      dockerfile_inline: |
+        FROM localai/localai:latest
+        RUN apt-get update -y -qq && apt-get install -y -qq make procps iputils-ping curl
+        RUN cp ./local-ai /usr/local/bin/local-ai
+        RUN mkdir -p /opt/local-ai
+        RUN local-ai backends install llama-cpp
+        #WORKDIR /opt/local-ai
+        COPY .cmk/compose.mk .
+        COPY containers/__main__.mk .
+        COPY mcp/automation.mk .
+        #WORKDIR /
+    environment:
+      OLLAMA_HOST: 'ollama:11434'
+      LLM_MODEL: 'ollama://qwen3:latest'
+      LLM_PORT: '80'
+    entrypoint: >-
+      sh -x -c "local-ai run /models/tinyllama.yaml"
+  #bash -x -c " env|grep LLM; local-ai --version; local-ai run --address=":${LLM_PORT:-}" ${LLM_MODEL:-}"
+    volumes:
+      # Share the src root
+      - ..:/workspace
+      - ../models:/models
+      # NB: this allows model-sharing for any host-installation of ollama if 
+      # it's available. Probably wrong for non-Linux and also maybe wrong for 
+      # some ollama versions?
+      - /usr/share/ollama/.ollama:/root/.ollama
+      # - ../scratch:/usr/share/localai/backends
+    ports: ['8086:80']
+
+
+configs:
+  mcp.json:
+    content: |
+      {
+        "mcpServers": {
+          "combined_server": {
+            "url":"http://combined_server/mcp"}
+        }
+      }

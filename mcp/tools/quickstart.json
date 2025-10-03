@@ -1,0 +1,6 @@
+{
+  "name": "quickstart",
+  "transport": "stdio",
+  "command": "python3",
+  "args": ["/opt/mcp/tools/quickstart.py"]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "shell",
+  "transport": "stdio",
+  "command": "python3",
+  "args": ["-m", "mcp_server_shell"]
+}

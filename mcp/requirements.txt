@@ -1,0 +1,10 @@
+# https://gofastmcp.com/getting-started/welcome
+fastmcp==2.12.4
+
+# https://pypi.org/project/mcp-server-shell/
+mcp-server-shell==0.1.0
+
+# https://github.com/lastmile-ai/mcp-agent
+mcp-agent
+
+rich==14.1.0

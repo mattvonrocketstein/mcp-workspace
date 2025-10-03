@@ -1,0 +1,8 @@
+name: mcp-workspace
+
+include:
+  - abstract.yml
+  - clients.yml
+  - mcp.yml
+  - inference.yml
+  - site.yml

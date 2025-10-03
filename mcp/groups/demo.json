@@ -1,0 +1,7 @@
+{
+    "name": "demo-group",
+    "description": "Demo Group",
+    "included_tools": [
+        "filesystem__read_file"
+    ]
+}

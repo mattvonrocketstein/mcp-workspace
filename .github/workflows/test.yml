@@ -1,0 +1,26 @@
+name: Test
+on:
+  workflow_call: {}
+  # push:
+  #   branches: [ "master" ]
+  pull_request:
+    branches: [ "main" ]
+    paths-ignore:
+      - '**.md'
+permissions:
+  contents: read
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Static-Analysis
+        run: make clean init build
+      - name: Serve
+        run: make serve io.wait/10
+      - name: Test
+        run: make test

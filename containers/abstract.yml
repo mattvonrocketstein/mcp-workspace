@@ -1,0 +1,50 @@
+services:
+ 
+  # A base-stack for working with MCP.  This starts with mcpjungle's official image, 
+  # adding golang, docker, and paving a layout for some persistent config later.
+  # See also: https://github.com/mcpjungle/MCPJungle/blob/main/stdio.Dockerfile
+  base:
+    profiles: ['abstract','all']
+    entrypoint: >-
+      sh -x -c "echo (no entrypoint for base)"
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM mcpjungle/mcpjungle:${MCPJUNGLE_IMAGE_TAG:-latest-stdio}
+
+        RUN mv /mcpjungle /usr/local/bin
+        RUN mkdir -p /opt/mcp
+        WORKDIR /opt/mcp
+
+        # Bootstrapping mcpjungle assumes localhost:80, but this default won't be suitable everywhere.
+        # See override in `mcp.local:workspace`
+        RUN echo 'registry_url: http://localhost:80' > ~/.mcpjungle.conf
+
+        RUN apt-get update -qq \
+          && apt-get install -qq -y \
+            make iputils-ping procps curl gnupg python3-pip tree bc wget
+
+        # Install a golang stack.  (Upstream only has uvx/npx)
+        RUN wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz && \
+            tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz && \
+            rm go1.24.0.linux-amd64.tar.gz && \
+            apt-get clean && \
+            rm -rf /var/lib/apt/lists/*
+        ENV PATH="/usr/local/go/bin:${PATH}"
+        ENV GOPATH="/go"
+        ENV PATH="/go/bin:/usr/local/go/bin:${PATH}"
+        RUN mkdir -p /go/src /go/bin
+        ENV PATH="/go/bin:/usr/local/go/bin:${PATH}"
+        
+        # Docker stack, so that extensions can incorporate/embed other dockerized servers.
+        # Note that Downstream docker-compose entries etc must still volume-mount the socket
+        RUN curl -fsSL https://get.docker.com | sh
+        
+        # pre-cache the inspector
+        RUN npm install -g -y @modelcontextprotocol/inspector@0.15.0
+
+        # instal mcptools
+        RUN go install github.com/f/mcptools/cmd/mcptools@v0.7.1
+        RUN mv /go/bin/mcptools /usr/local/bin/mcptools
+      tags: ['mcp.local:base']
+

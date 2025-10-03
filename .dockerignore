@@ -208,3 +208,5 @@ __marimo__/
 .flux.*
 .tmp.*
 scratch
+.git
+.gitignore

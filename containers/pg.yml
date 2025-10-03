@@ -1,0 +1,20 @@
+# An optional postgres service.  By default this isn't used, and to
+# enable it see the main compose file and uncomment relevant lines
+services:
+  db:
+    hostname: db
+    image: postgres:latest
+    container_name: mcpjungle-db
+    environment:
+      POSTGRES_USER: mcpjungle
+      POSTGRES_PASSWORD: mcpjungle
+      POSTGRES_DB: mcpjungle
+    ports:
+      - "5432:5432"
+    # volumes:
+    #   - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=mcpjungle pg_isready -U mcpjungle"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

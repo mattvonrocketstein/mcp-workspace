@@ -1,0 +1,6 @@
+{
+    "name": "markitdown",
+    "transport": "streamable_http",
+    "description": "https://github.com/microsoft/markitdown/tree/main/packages/markitdown-mcp",
+    "url": "http://markitdown:80/mcp"
+}

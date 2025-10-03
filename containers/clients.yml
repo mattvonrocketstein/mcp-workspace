@@ -1,0 +1,33 @@
+services:
+  # mcp_inspector:
+  #     ports: ["6274:6274","6277:6277"] 
+  #     image: ghcr.io/modelcontextprotocol/inspector:latest
+  #     # network_mode: host
+  #     # <<: *workspace
+  #     # image: modelcontextprotocol/inspector
+  #     # ports:
+  #     #   - "5173:5173"
+  #     # environment:
+  #     #   - BROWSER=none
+  #     # entrypoint: >-
+  #     #   npx @modelcontextprotocol/inspector@latest 
+  #     command: http://combined_server:80
+  #     # command: --no-open
+  
+  ollmcp:
+    hostname: ollmcp
+    profiles: ['tools','all']
+    # depends_on: ['ollama'] 
+    # links: ['ollama']
+    entrypoint: >-
+      ollmcp --version
+    # environment:
+    #   OLLAMA_HOST: http://ollama:11434/
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.11-slim-bookworm
+        RUN apt-get update -qq && apt-get install -qq -y make procps curl iputils-ping tree
+        RUN pip install --no-cache-dir ollmcp
+  
+  

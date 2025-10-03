@@ -1,0 +1,85 @@
+# See the main docs: https://mattvonrocketstein.github.io/mcp-workspace/
+services:
+    
+  # An extension of mcp.local:base (see `abstract.yml`) with site-specific customization. 
+  # This honors the requirements.txt for python, and installs node/golang dependencies for
+  # servers specified by servers/*.json.  This is pre-caching (i.e. not DRY with JSON)
+  workspace: &workspace
+    # hostname: workspace
+    profiles: ['mcp', 'abstract', 'all']
+    build:
+      context: ..
+      dockerfile_inline: |
+        FROM mcp.local:base
+        COPY mcp/requirements.txt /opt/mcp
+        RUN pip3 install --break-system-packages -r /opt/mcp/requirements.txt 
+        RUN apt-get install -qq -y taskwarrior
+        RUN npm install -g -y mcp-server-taskwarrior@1.0.1
+        RUN npm install -g -y mcp-tasks
+        RUN printf 'y\n' | task list || true
+
+        # Override from base, default to using the `tools` hostname.
+        # Important: server-name must match something sensible, usually a container 
+        # in the same docker-network, but potentially anything.  There are various ways 
+        # to override this if necessary, like providing `extra_hosts` in docker-compose, 
+        # or a docker CLI environment flag for another config-file, or volume-mounting a file.
+        RUN echo 'registry_url: http://tools' > ~/.mcpjungle.conf
+        RUN apt-get install -y -qq inotify-tools
+        COPY mcp/tools ./servers 
+        COPY mcp/groups ./groups
+        COPY mcp/prompts ./prompts
+        COPY mcp/components ./components
+        COPY mcp/resources ./resources
+        COPY mcp/automation.mk .
+        COPY containers ./containers
+        COPY .cmk/compose.mk .
+        COPY containers/__main__.mk Makefile
+        ENTRYPOINT ["make", "-s", "-C", "/opt/mcp"]
+      tags: ['mcp.local:workspace']
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+      # Share socket so that subservers can use docker
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      # Toggle these to use builtins or override with local data
+      - ../mcp/prompts:/opt/mcp/prompts
+      - ../mcp/tools:/opt/mcp/tools
+      - ../mcp/resources:/opt/mcp/resources
+  
+  mcp_server_base: &mcp_server_base
+    <<: *workspace
+    profiles: ['mcp', 'server', 'all']
+    working_dir: /opt/mcp
+    environment: &env_base
+      MCP_ROOT: /opt/mcp
+  
+  # Tools server
+  tools: &tools
+    <<: *mcp_server_base
+    hostname: tools
+    entrypoint: make tool_server
+    environment:
+      SERVER_MODE: ${SERVER_MODE:-development}
+      OTEL_ENABLED: ${OTEL_ENABLED:-false}
+      MCPJUNGLE_PORT: ${MPCJUNGLE_PORT:-80}
+  
+  # Prompts server
+  prompts: &prompts
+    <<: *mcp_server_base
+    hostname: prompts
+    entrypoint: make prompt_server
+  
+  # Resources server
+  resources: &resources
+    <<: *mcp_server_base
+    hostname: resources
+    entrypoint: make resource_server
+  
+  # Combined server
+  combined_server: &combined_server
+    <<: *mcp_server_base
+    hostname: combined_server
+    entrypoint: make combined_server
+    ports: ["9031:80"]
+    environment: &env_base
+      MCP_SUBSERVERS: tools,prompts,resources,markitdown
