@@ -1,23 +1,29 @@
 """
 FastMCP server that loads all markdown files from a directory as prompt resources.
 Additionally loads any FastMCP instances defined by any python files in the same directory.
+
+USAGE:
+    MCP_PROMPT_PORT=80 python prompt_server.py /path/to/prompts
 """
 
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
 from fastmcp import FastMCP
-from rich.console import Console
-from rich.traceback import install
+from rich import traceback
 
-# This will automatically format all exceptions in your program
-install(show_locals=True)
+traceback.install(show_locals=True)
+
+from rich.console import Console
+
 console = Console()
 
 loop = asyncio.get_event_loop()
 mcp = FastMCP(name="Workspace Prompt Server")
+MCP_PROMPT_PORT = int(os.environ.get("MCP_PROMPT_PORT", "80"))
 
 logging.basicConfig(level=logging.INFO)
 
@@ -114,10 +120,10 @@ async def setup():
     """Import without prefix - components keep original names"""
     logging.info("Building server..")
     for fname, sub in SUBS.items():
-        logging.info(f"  importing {fname}: {sub}")
+        logging.info(f"  Importing {fname}: {sub}")
         await mcp.import_server(sub)
 
 
 if __name__ == "__main__":
     asyncio.run(setup())
-    mcp.run(transport="http", host="0.0.0.0", port=80)
+    mcp.run(transport="http", host="0.0.0.0", port=MCP_PROMPT_PORT)

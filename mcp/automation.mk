@@ -12,7 +12,7 @@ export OLLAMA_URL?=http://ollama:11434
 export MCP_URL?=http://combined_server/mcp
 
 export MCPJUNGLE_IMAGE_TAG?=${mcpjungle.img_tag}
-export MCPJUNGLE_PORT?=80
+export MCP_TOOL_PORT?=80
 define _mcp.inspector
 	$(call log.maybe,${@} ${sep} ..) && quiet=1 \
 	entrypoint=npx \
@@ -48,8 +48,8 @@ workspace.stat:;
 		mcp.list.prompts mcp.list.resources  \
 	| ${jq} -s 'add'
 
-workspace.serve: workspace.serve/mcp #workspace.serve/site #workspace.serve/inference
-workspace.serve.fg: workspace.serve.fg/mcp #workspace.serve.fg/site
+workspace.serve: workspace.serve/mcp 
+workspace.serve.fg: workspace.serve.fg/mcp
 workspace.shell: workspace.workspace.shell 
 	@# Debugging shell for the main container
 workspace.serve/%:; ${make} compose.with_profile/${*}/workspace.down,workspace.up.detach
@@ -58,11 +58,24 @@ workspace.serve.fg/%:; ${make} compose.with_profile/${*}/workspace.down,workspac
 
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
-lmstudio.up:; COMPOSE_PROFILES=lmstudio ${make} workspace.restart
+lmstudio.serve: workspace.lmstudio.build workspace.lmstudio.up.detach flux.timeout/15/workspace.lmstudio.logs lmstudio.init
+#COMPOSE_PROFILES=lmstudio ${make} workspace.restart
+lmstudio.init: lms.get/paraphrase-MiniLM-L6-v2-GGUF lms.load/paraphrase-MiniLM-L6-v2-GGUF lms.status
+# workspace.lmstudio.exec/.lmstudio.init
+# .lmstudio.init: 
+# 	lms load -y paraphrase-MiniLM-L6-v2-GGUF --identifier paraphrase
+
+# ${make} lmstudio.load/
+#lmstudio.load/text-embedding-paraphrase-minilm-l6-v2
+lmstudio.load/%:; cmd="load ${*} -y" ${make} lmstudio.cli
+#    lms load text-embedding-paraphrase-minilm-l6-v2
 lmstudio.cli:; cmd="/opt/lmstudio/resources/app/.webpack/lms $${cmd:---help}" ${make} workspace.lmstudio.exec
-lmstudio.lms.status:; cmd="server status --json" ${make} lmstudio.cli 2>/dev/null | ${jq} . 
+lms.get/%:; cmd="get ${*} -y" ${make} lmstudio.cli
+lms.load/%:; cmd="load -y ${*}" ${make} lmstudio.cli
+# lms.ls:; cmd="ls" ${make} lmstudio.cli
+lms.status:; cmd="server status --json" ${make} lmstudio.cli 2>/dev/null | ${jq} . 
 lmstudio.stat: workspace.lmstudio.ps lmstudio.lms.status
-lmstudio.%:; set -x && ${make} workspace.lmstudio.${*} || true
+# lmstudio.%:; set -x && ${make} workspace.lmstudio.${*} || true
 
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
@@ -70,7 +83,7 @@ ollama.serve.fg: compose.with_profile/ollama/mcp.restart
 ollama.serve:; COMPOSE_PROFILES=ollama ${make} mcp.stop mcp.up.detach
 ollama.create/%:
 	ls ${*} >/dev/null
-	entrypoint=ollama cmd="ollama create --file /workspace/${*} `basename -s.Modelfile ${*}`" ${make} workspace.ollama.exec
+	cmd="ollama create --file /workspace/${*} `basename -s.Modelfile ${*}`" ${make} workspace.ollama.exec
 
 mcp.ollmcp:
 	COMPOSE_PROFILES=ollama,tools \
@@ -121,7 +134,7 @@ mcp.load.groups:
 
 mcp.load.servers:
 	@# Load all defined servers from config file(s)
-	ls ${MCP_ROOT}/servers/*json | ${flux.each}/mcp.create.server
+	ls ${MCP_ROOT}/tools/*json | ${flux.each}/mcp.create.server
 mcp.create.group/%:
 	@# Creates an MCP tool-group from the given JSON config file
 	$(call _mcp.create.any, groups, create group, ${*}) 
@@ -141,6 +154,7 @@ mcp.tools.assert_running:
 	$(call log.target.part2, ok)
 
 
+stream.escape.json=sed 's/"/\\"/g'
 mcp.invoke=${make} mcp.invoke
 mcp.invoke/%:
 	@# Accepts JSON input on stdin, and streams it as input to the named tool

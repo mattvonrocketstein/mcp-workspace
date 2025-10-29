@@ -21,6 +21,6 @@ jobs:
       - name: Static-Analysis
         run: make clean init build
       - name: Serve
-        run: make serve io.wait/10
+        run: make serve io.wait/30
       - name: Test
         run: make test

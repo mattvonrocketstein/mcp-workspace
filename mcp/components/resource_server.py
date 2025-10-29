@@ -1,9 +1,13 @@
 """
 FastMCP server that loads resources from python-files or JSON
+
+USAGE:
+    MCP_RESOURCE_PORT=80 python resource_server.py
 """
 
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -12,6 +16,7 @@ from fastmcp import FastMCP
 loop = asyncio.get_event_loop()
 mcp = FastMCP(name="Workspace Resource Server")
 logging.basicConfig(level=logging.INFO)
+MCP_RESOURCE_PORT = int(os.environ.get("MCP_RESOURCE_PORT", "80"))
 
 ASSETS = {}
 SUBS = {}
@@ -23,10 +28,12 @@ ASSET_DIR = (
 
 
 def load_resources():
+    """Placeholder. Use `load_python_assets` as a template and filter for JSON, JPG, or whatever"""
     return {}
 
 
 def load_python_assets(prompts={}, skip_list=[]) -> None:
+    """ """
     if not ASSET_DIR.exists():
         logging.critical(f"Asset-directory {ASSET_DIR} does not exist!")
         return
@@ -54,7 +61,6 @@ def load_python_assets(prompts={}, skip_list=[]) -> None:
 # Load assets at startup
 logging.info(f"Loading resources from: {ASSET_DIR}")
 ASSETS.update(load_resources())
-# logging.info(f"Found {len(ASSETS)} markdown prompts")
 logging.info(f"Loading python-backed resources from: {ASSET_DIR}")
 load_python_assets()
 logging.info(f"Found {len(ASSETS)} python files")
@@ -77,4 +83,4 @@ async def setup():
 
 if __name__ == "__main__":
     asyncio.run(setup())
-    mcp.run(transport="http", host="0.0.0.0", port=80)
+    mcp.run(transport="http", host="0.0.0.0", port=MCP_RESOURCE_PORT)

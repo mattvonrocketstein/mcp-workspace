@@ -22,5 +22,5 @@ jobs:
         run: make clean init normalize static-analysis
       - name: Build
         run: make build
-      - name: Test
-        run: make test
+      # - name: Test
+      #   run: make test

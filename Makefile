@@ -22,11 +22,11 @@ $(call compose.import.as, namespace=workspace file=containers/__main__.yml)
 py.src_root:=mcp/
 $(call mk.import.plugins, py.mk actions.mk docs.mk json.mk)
 
-#░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-panic: docker.stop.all
 .PHONY: build docs docs/includes
 
 __main__: help.local
+
+panic: docker.stop.all
 
 clean: flux.stage/clean 
 	@# Project Clean 
@@ -61,20 +61,12 @@ test.tool.markitdown: mcp.assert_tool_ready/markitdown workspace.workspace.dispa
 	$(call log.target, exercising markdown server)
 	${jb} uri=https://microsoft.github.io/prompt-engineering/ \
 		| ${mcp.invoke}/markitdown__convert_to_markdown | head -5 | ${stream.as.log}
-
-# mcpjungle invoke markitdown__convert_to_markdown \
-# 	--input '{"uri":"https://microsoft.github.io/prompt-engineering/"}' \
-# 2>&1 | head -5
-
 .test.task_tool:
 	$(call log.target, exercising task-management server)
 	${jb} workspace=. source_path=tasks.md | ${mcp.invoke}/tasks__tasks_setup | ${stream.as.log}
 	${jb} status=todo 'texts:[,]=plan foo' | ${mcp.invoke}/tasks__tasks_add | ${stream.as.log}
 	${jb} status=todo 'texts:[,]=implement bar' | ${mcp.invoke}/tasks__tasks_add | ${stream.as.log}
 	echo '{}' | ${mcp.invoke}/tasks__tasks_summary | ${stream.as.log}
-
-stream.escape.json=sed 's/"/\\"/g'
-
 
 # Smoke Tests
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
@@ -96,11 +88,4 @@ validate.json: json.validate/mcp
 validate.compose:; ls containers/*.yml | ${flux.each}/compose.validate
 validate lint: validate.compose validate.json validate.makefiles static-analysis
 validate.makefiles: mk.validate/mcp/automation.mk 
-
 self.static-analysis: py.static-analysis
-
-# Docs related
-#░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-# serve: docs.serve
-# .PHONY: README.md
-# README.md:; ${docs.render.mirror}

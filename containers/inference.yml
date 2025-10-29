@@ -27,12 +27,12 @@ services:
         COPY .cmk/compose.mk .
         COPY containers/__main__.mk Makefile
         COPY mcp/automation.mk .
-      tags: ['ollama.local:base']
+      tags: ['ollama:local']
     environment:
       OLLAMA_HOST: ollama:11434
       OLLAMA_MODELS: /root/.ollama
     volumes:
-      # Share the src root
+      # Share the src root, in case that's where we're storing model cache
       - ..:/workspace
       # NB: this allows model-sharing for any host-installation of ollama if 
       # it's available. Probably wrong for non-Linux and also maybe wrong for 
@@ -46,48 +46,57 @@ services:
     profiles: ['lmstudio', 'server', 'all']
     build:
       context: ..
+      tags: ['lmstudio:local']
       dockerfile_inline: |
-        # Use an Ubuntu base (or another Linux that supports FUSE, GUI libs, etc.)
         FROM ubuntu:24.04
         ENV DISPLAY=:99
+        ENV DEBIAN_FRONTEND=noninteractive
         RUN apt-get update && apt-get install -y \
-              wget fuse libfuse2 libnss3 \
-              libatk1.0-0 libatk-bridge2.0-0 \
-              libcups2 libgtk-3-0 libgbm1 \
-              libclblast1 libgl1 ca-certificates \
-              libasound2-dev make procps xserver-xorg xvfb \
-              libfuse2 kmod fuse libglib2.0-0 libnss3 libatk1.0-0 \
-              libatk-bridge2.0-0 libcups2 libdrm2 libgtk-3-0 libgbm1 xserver-xorg xvfb libgomp1
-        
+            wget apt-transport-https software-properties-common ca-certificates \
+            keyboard-configuration console-setup tzdata dbus x11-utils x11-xserver-utils \
+            make procps curl iputils-ping tree \
+            fuse libfuse2 libnss3 \
+            libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libgtk-3-0 libgbm1 \
+            libclblast1 libgl1 ca-certificates \
+            libasound2-dev make procps xserver-xorg xvfb \
+            libfuse2 kmod fuse libglib2.0-0 libnss3 libatk1.0-0 \
+            libatk-bridge2.0-0 libcups2 libdrm2 libgtk-3-0 libgbm1 xserver-xorg xvfb libgomp1
+        RUN wget -O "/usr/share/keyrings/xpra.asc" https://xpra.org/xpra.asc
+        RUN wget -O "/etc/apt/sources.list.d/xpra.sources" https://raw.githubusercontent.com/Xpra-org/xpra/master/packaging/repos/noble/xpra-lts.sources
+        RUN apt-get update -qq && apt-get install -qq -y xpra
         # Download LM Studio AppImage (or other Linux build)
         RUN wget https://installers.lmstudio.ai/linux/x64/0.3.30-1/LM-Studio-0.3.30-1-x64.AppImage -O /opt/LMStudio.AppImage 
+        # optionally “extract” the AppImage to avoid launching in GUI mode
         RUN chmod +x /opt/LMStudio.AppImage \
-            # optionally “extract” the AppImage to avoid launching in GUI mode
             && /opt/LMStudio.AppImage --appimage-extract \
             && mv squashfs-root /opt/lmstudio
         # Set working directory
         WORKDIR /opt/lmstudio
-        RUN DEBIAN_FRONTEND=noninteractive apt-get install -y keyboard-configuration console-setup tzdata dbus x11-utils x11-xserver-utils 
         RUN dpkg-reconfigure -f noninteractive keyboard-configuration
         RUN chown root:root chrome-sandbox
         RUN chmod 4755 chrome-sandbox
         # COPY start_services.sh /opt/lmstudio/start_services.sh
         # RUN chmod +x /opt/lmstudio/start_services.sh
         RUN ln -s /opt/lmstudio/resources/app/.webpack/lms /usr/bin/lms
-        RUN apt-get install -y -qq make procps curl iputils-ping tree 
         COPY .cmk/compose.mk .
         COPY containers/__main__.mk Makefile
         COPY mcp/automation.mk .
-    ports: ["1234:1234"]
-      # - 41343:41343
+        ENV DISPLAY=:6274
+        # x11-apps
+
+    ports: ["1234:1234","6274:6274"]
     entrypoint: make engine.lmstudio
     volumes:
       - ../models/lmstudio:/root/.cache/lm-studio/models
       - ..:/workspace
     environment:
-      - DISPLAY=:99
+      - DISPLAY=:10
       - CONTEXT_LENGTH=32768
       # - MODEL_PATH=nomic-embed-text-v1.5.Q4_K_M.gguf
+    # environment:
+    # entrypoint: >-
+    #   xpra start :10 --bind-tcp=0.0.0.0:6274 --mdns=no --printing=no --speaker=no --sharing=yes --audio=no --pulseaudio=no --webcam=no --microphone=off --html=on --daemon=no --window-close=disconnect --file-transfer=no --tray=no --system-tray=no --exit-with-children --start-child '/opt/lmstudio/lm-studio --no-sandbox'
     configs:
       - source: mcp.json
         target: /root/.cache/lm-studio/mcp.json
@@ -132,7 +141,6 @@ services:
       - /usr/share/ollama/.ollama:/root/.ollama
       # - ../scratch:/usr/share/localai/backends
     ports: ['8086:80']
-
 
 configs:
   mcp.json:
